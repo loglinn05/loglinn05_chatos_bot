@@ -3,6 +3,7 @@
 namespace App\Telegram;
 
 use App\Models\User;
+use DefStudio\Telegraph\Enums\ChatActions;
 use DefStudio\Telegraph\Handlers\WebhookHandler;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Log;
@@ -27,6 +28,8 @@ class Handler extends WebhookHandler
     $from = $this->message->from();
     $fromUser = User::where('telegram_user_id', $from->id())->first();
 
+    $this->chat->action(ChatActions::TYPING)->send();
+
     // saying hello
     $name = $from->firstName();
     $this->reply("Hi, $name!");
@@ -45,15 +48,18 @@ class Handler extends WebhookHandler
       $user->save();
 
       if ($user) {
+        $this->chat->action(ChatActions::TYPING)->send();
         $this->reply("You've been added to the database.");
       }
     }
 
+    $this->chat->action(ChatActions::TYPING)->send();
     $this->reply("If you need further assistance, enter /help.");
   }
 
   public function help()
   {
+    $this->chat->action(ChatActions::TYPING)->send();
     $this->reply("
       I can invite you to our Trello board. Let's work _together_! \xE2\x9C\xA8
       \n*Enter /invite to proceed.*
@@ -65,16 +71,22 @@ class Handler extends WebhookHandler
     $from = $this->message->from();
     $fromUser = User::where('telegram_user_id', $from->id())->first();
 
-    $this->forceToEnterEmail();
-
-    $fromUser->status = "providing email";
-    $fromUser->save();
+    if (!$fromUser->email) {
+      $this->forceToEnterEmail();
+      $fromUser->status = "providing email";
+      $fromUser->save();
+    } else {
+      $this->chat->action(ChatActions::TYPING)->send();
+      $this->reply("You're already invited. Enjoy the experience!");
+      $this->getLinkToTheBoard();
+    }
   }
 
   public function handleUnknownCommand(\Illuminate\Support\Stringable $text): void
   {
+    $this->chat->action(ChatActions::TYPING)->send();
     $this->reply("What do you mean?
-    \nI don't speak humanese! \xF0\x9F\x98\x85");
+    \nI don't know this command! \xF0\x9F\x98\x85");
   }
 
   public function handleChatMessage($email): void
@@ -96,7 +108,6 @@ class Handler extends WebhookHandler
       if (
         $invitationResponse->getStatusCode() == 200
       ) {
-        Log::info($fromUser->email);
         if (!$fromUser->email) {
           $fromUser->email = $email;
           $fromUser->save();
@@ -106,15 +117,22 @@ class Handler extends WebhookHandler
         $invitationResponse->getBody() == 'Member already invited'
       ) {
         $this->clearFromUserStatus();
+
+        $this->chat->action(ChatActions::TYPING)->send();
         $this->reply("You're already invited. Enjoy the experience!");
+
         $this->getLinkToTheBoard();
       } elseif (
         json_decode($invitationResponse->getBody())->message == "invalid email address"
       ) {
+        $this->chat->action(ChatActions::TYPING)->send();
         $this->reply("Invalid email address.");
+
         $this->forceToEnterEmail();
       } else {
         $this->clearFromUserStatus();
+
+        $this->chat->action(ChatActions::TYPING)->send();
         $this->reply("Unknown error occurred during invitation attempt.");
       }
     }
@@ -122,7 +140,15 @@ class Handler extends WebhookHandler
 
   private function forceToEnterEmail()
   {
-    $this->chat->message("Please, enter your email so I can invite you:")->forceReply("Enter your email here...", true)->send();
+    $from = $this->message->from();
+    $fromUser = User::where('telegram_user_id', $from->id())->first();
+    Log::info($fromUser->email);
+
+    $this->chat->action(ChatActions::TYPING)->send();
+    $this->chat->message("Please, enter your email so I can invite you:")->forceReply("Enter your email here...", selective: true)->send();
+
+    Log::info("Forcing user to enter email");
+    Log::info($from);
   }
 
   private function sendInvitationRequest($email, $fullName)
@@ -151,6 +177,7 @@ class Handler extends WebhookHandler
   {
     $this->clearFromUserStatus();
 
+    $this->chat->action(ChatActions::TYPING)->send();
     $this->reply("You've been successfully invited.");
     $this->getLinkToTheBoard();
   }
@@ -163,9 +190,12 @@ class Handler extends WebhookHandler
 
     if ($getBoardResponse->getStatusCode() == 200) {
       $linkToTheBoard = json_decode($getBoardResponse->getBody())->url;
+
+      $this->chat->action(ChatActions::TYPING)->send();
       $this->reply("Here's the link to the board:
       \n$linkToTheBoard");
     } else {
+      $this->chat->action(ChatActions::TYPING)->send();
       $this->reply("Unfortunately, we couldn't get the link to the board.");
     }
   }

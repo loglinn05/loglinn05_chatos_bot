@@ -20,6 +20,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::except([
+            '/trello'
+        ]);
+
         // Remember to comment this all out when running migrate:fresh
         $bot = TelegraphBot::find(1);
         $bot->registerCommands([
