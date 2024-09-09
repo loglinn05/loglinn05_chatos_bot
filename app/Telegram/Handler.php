@@ -3,10 +3,9 @@
 namespace App\Telegram;
 
 use App\Models\User;
-use DefStudio\Telegraph\Enums\ChatActions;
-use DefStudio\Telegraph\Facades\Telegraph;
 use DefStudio\Telegraph\Handlers\WebhookHandler;
 use GuzzleHttp\Client;
+use Illuminate\Support\Facades\Log;
 
 class Handler extends WebhookHandler
 {
@@ -27,8 +26,6 @@ class Handler extends WebhookHandler
   {
     $from = $this->message->from();
     $fromUser = User::where('telegram_user_id', $from->id())->first();
-
-    Telegraph::chatAction(ChatActions::TYPING)->send();
 
     // saying hello
     $name = $from->firstName();
@@ -99,6 +96,7 @@ class Handler extends WebhookHandler
       if (
         $invitationResponse->getStatusCode() == 200
       ) {
+        Log::info($fromUser->email);
         if (!$fromUser->email) {
           $fromUser->email = $email;
           $fromUser->save();
@@ -124,8 +122,7 @@ class Handler extends WebhookHandler
 
   private function forceToEnterEmail()
   {
-    Telegraph::chatAction(ChatActions::TYPING)->send();
-    $this->chat->message("Please, enter your email so I can invite you:")->forceReply("Enter your email here...")->send();
+    $this->chat->message("Please, enter your email so I can invite you:")->forceReply("Enter your email here...", true)->send();
   }
 
   private function sendInvitationRequest($email, $fullName)
