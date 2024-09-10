@@ -6,7 +6,6 @@ use App\Models\User;
 use DefStudio\Telegraph\Enums\ChatActions;
 use DefStudio\Telegraph\Handlers\WebhookHandler;
 use GuzzleHttp\Client;
-use Illuminate\Support\Facades\Log;
 
 class Handler extends WebhookHandler
 {
@@ -71,15 +70,9 @@ class Handler extends WebhookHandler
     $from = $this->message->from();
     $fromUser = User::where('telegram_user_id', $from->id())->first();
 
-    if (!$fromUser->email) {
-      $this->forceToEnterEmail();
-      $fromUser->status = "providing email";
-      $fromUser->save();
-    } else {
-      $this->chat->action(ChatActions::TYPING)->send();
-      $this->reply("You're already invited. Enjoy the experience!");
-      $this->getLinkToTheBoard();
-    }
+    $fromUser->status = "providing email";
+    $fromUser->save();
+    $this->forceToEnterEmail();
   }
 
   public function handleUnknownCommand(\Illuminate\Support\Stringable $text): void
@@ -140,15 +133,8 @@ class Handler extends WebhookHandler
 
   private function forceToEnterEmail()
   {
-    $from = $this->message->from();
-    $fromUser = User::where('telegram_user_id', $from->id())->first();
-    Log::info($fromUser->email);
-
     $this->chat->action(ChatActions::TYPING)->send();
     $this->chat->message("Please, enter your email so I can invite you:")->forceReply("Enter your email here...", selective: true)->send();
-
-    Log::info("Forcing user to enter email");
-    Log::info($from);
   }
 
   private function sendInvitationRequest($email, $fullName)
